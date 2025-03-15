@@ -127,62 +127,70 @@ def gen_sh(
     line_break = "\\" if sys.platform != "win32" else "^"
     file_type = "sh" if sys.platform != "win32" else "bat"
 
+    # Build the sample part separately
     sample = ""
     if sample_prompts and sample_every_n_steps > 0:
-        sample = f"""--sample_prompts={resolve_path('sample_prompts.txt')} --sample_every_n_steps="{sample_every_n_steps}" {line_break}"""
+        sample = (
+            f"--sample_prompts={resolve_path('sample_prompts.txt')} "
+            f"--sample_every_n_steps=\"{sample_every_n_steps}\" {line_break}"
+        )
 
+    # Paths
     pretrained_model_path = resolve_path("models/unet/flux1-dev-fp8.safetensors")
     clip_path = resolve_path("models/clip/clip_l.safetensors")
     t5_path = resolve_path("models/clip/t5xxl_fp8.safetensors")
     ae_path = resolve_path("models/vae/ae.sft")
     output_dir = resolve_path("outputs")
 
+    # Optimizer settings
     optimizer = (
-        f"""--optimizer_type adafactor {line_break}
-  --optimizer_args "relative_step=False" "scale_parameter=False" "warmup_init=False" {line_break}
-  --lr_scheduler constant_with_warmup {line_break}
-  --max_grad_norm 0.0 {line_break}"""
-        if vram in ["16G (T4x2)", "12G"] else f"--optimizer_type adamw8bit {line_break}"
-    )
+        f"--optimizer_type adafactor {line_break}"
+        f"--optimizer_args \"relative_step=False\" \"scale_parameter=False\" \"warmup_init=False\" {line_break}"
+        f"--lr_scheduler constant_with_warmup {line_break}"
+        f"--max_grad_norm 0.0 {line_break}"
+    ) if vram in ["16G (T4x2)", "12G"] else f"--optimizer_type adamw8bit {line_break}"
     if vram == "12G":
-        optimizer += f"""--split_mode {line_break} --network_args "train_blocks=single" {line_break}"""
+        optimizer += f"--split_mode {line_break} --network_args \"train_blocks=single\" {line_break}"
 
-    sh = f"""accelerate launch --num_processes 2 --multi_gpu {line_break}
-  --mixed_precision bf16 {line_break}
-  --num_cpu_threads_per_process 1 {line_break}
-  sd-scripts/flux_train_network.py {line_break}
-  --pretrained_model_name_or_path {pretrained_model_path} {line_break}
-  --clip_l {clip_path} {line_break}
-  --t5xxl {t5_path} {line_break}
-  --ae {ae_path} {line_break}
-  --cache_latents_to_disk {line_break}
-  --save_model_as safetensors {line_break}
-  --sdpa --persistent_data_loader_workers {line_break}
-  --max_data_loader_n_workers {workers} {line_break}
-  --seed {seed} {line_break}
-  --gradient_checkpointing {line_break}
-  --gradient_accumulation_steps 4 {line_break}
-  --batch_size 1 {line_break}
-  --mixed_precision bf16 {line_break}
-  --save_precision bf16 {line_break}
-  --network_module networks.lora_flux {line_break}
-  --network_dim {network_dim} {line_break}
-  {optimizer}{sample}
-  --learning_rate {learning_rate} {line_break}
-  --cache_text_encoder_outputs {line_break}
-  --cache_text_encoder_outputs_to_disk {line_break}
-  --fp8_base {line_break}
-  --highvram {line_break}
-  --max_train_epochs {max_train_epochs} {line_break}
-  --save_every_n_epochs {save_every_n_epochs} {line_break}
-  --dataset_config {resolve_path('dataset.toml')} {line_break}
-  --output_dir {output_dir} {line_break}
-  --output_name {output_name} {line_break}
-  --timestep_sampling {timestep_sampling} {line_break}
-  --discrete_flow_shift 3.1582 {line_break}
-  --model_prediction_type raw {line_break}
-  --guidance_scale {guidance_scale} {line_break}
-  --loss_type l2 {line_break}"""
+    # Construct the full command
+    sh = (
+        f"accelerate launch --num_processes 2 --multi_gpu {line_break}"
+        f"--mixed_precision bf16 {line_break}"
+        f"--num_cpu_threads_per_process 1 {line_break}"
+        f"sd-scripts/flux_train_network.py {line_break}"
+        f"--pretrained_model_name_or_path {pretrained_model_path} {line_break}"
+        f"--clip_l {clip_path} {line_break}"
+        f"--t5xxl {t5_path} {line_break}"
+        f"--ae {ae_path} {line_break}"
+        f"--cache_latents_to_disk {line_break}"
+        f"--save_model_as safetensors {line_break}"
+        f"--sdpa --persistent_data_loader_workers {line_break}"
+        f"--max_data_loader_n_workers {workers} {line_break}"
+        f"--seed {seed} {line_break}"
+        f"--gradient_checkpointing {line_break}"
+        f"--gradient_accumulation_steps 4 {line_break}"
+        f"--batch_size 1 {line_break}"
+        f"--mixed_precision bf16 {line_break}"
+        f"--save_precision bf16 {line_break}"
+        f"--network_module networks.lora_flux {line_break}"
+        f"--network_dim {network_dim} {line_break}"
+        f"{optimizer}{sample}"
+        f"--learning_rate {learning_rate} {line_break}"
+        f"--cache_text_encoder_outputs {line_break}"
+        f"--cache_text_encoder_outputs_to_disk {line_break}"
+        f"--fp8_base {line_break}"
+        f"--highvram {line_break}"
+        f"--max_train_epochs {max_train_epochs} {line_break}"
+        f"--save_every_n_epochs {save_every_n_epochs} {line_break}"
+        f"--dataset_config {resolve_path('dataset.toml')} {line_break}"
+        f"--output_dir {output_dir} {line_break}"
+        f"--output_name {output_name} {line_break}"
+        f"--timestep_sampling {timestep_sampling} {line_break}"
+        f"--discrete_flow_shift 3.1582 {line_break}"
+        f"--model_prediction_type raw {line_break}"
+        f"--guidance_scale {guidance_scale} {line_break}"
+        f"--loss_type l2 {line_break}"
+    )
     return sh
 
 def gen_toml(dataset_folder, resolution, class_tokens, num_repeats):
@@ -386,44 +394,4 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                 output_components.append(captioning_area)
                 caption_list = []
                 for i in range(1, MAX_IMAGES + 1):
-                    locals()[f"captioning_row_{i}"] = gr.Row(visible=False)
-                    with locals()[f"captioning_row_{i}"]:
-                        locals()[f"image_{i}"] = gr.Image(
-                            type="filepath", width=111, height=111, min_width=111,
-                            interactive=False, scale=2, show_label=False,
-                            show_share_button=False, show_download_button=False,
-                        )
-                        locals()[f"caption_{i}"] = gr.Textbox(label=f"Caption {i}", scale=15, interactive=True)
-                    output_components.extend([locals()[f"captioning_row_{i}"], locals()[f"image_{i}"], locals()[f"caption_{i}"]])
-                    caption_list.append(locals()[f"caption_{i}"])
-        with gr.Column():
-            gr.Markdown(
-                """# Step 3. Train
-<p style="margin-top:0">Press start to begin training.</p>
-""", elem_classes="group_padding")
-            start = gr.Button("Start training", visible=False)
-            output_components.append(start)
-            train_script = gr.Textbox(label="Train script", max_lines=100, interactive=True)
-            train_config = gr.Textbox(label="Train config", max_lines=100, interactive=True)
-    with gr.Row():
-        terminal = LogsView(label="Train log", elem_id="terminal")
-    with gr.Row():
-        gallery = gr.Gallery(get_samples, label="Samples", every=10, columns=6)
-
-    dataset_folder = gr.State()
-
-    listeners = [
-        lora_name, resolution, seed, workers, concept_sentence, learning_rate,
-        network_dim, max_train_epochs, save_every_n_epochs, timestep_sampling,
-        guidance_scale, vram, num_repeats, sample_prompts, sample_every_n_steps,
-    ]
-
-    for listener in listeners:
-        listener.change(update, inputs=listeners, outputs=[train_script, train_config, dataset_folder])
-
-    images.upload(load_captioning, inputs=[images, concept_sentence], outputs=output_components)
-    images.delete(load_captioning, inputs=[images, concept_sentence], outputs=output_components)
-    images.clear(hide_captioning, outputs=[captioning_area, start])
-
-    max_train_epochs.change(update_total_steps, inputs=[max_train_epochs, num_repeats, images], outputs=[total_steps])
-    num_repeats.change
+                    locals()[f"captioning_row_{i}"] = gr
